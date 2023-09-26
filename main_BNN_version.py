@@ -226,6 +226,21 @@ model = Unet(
     convnext_mult=2,
 ).to(DEVICE)
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 criterion = nn.MSELoss()
 optimizer = Adam(model.parameters(), lr=1e-4) #lr : learning rate 
 

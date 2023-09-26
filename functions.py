@@ -157,43 +157,6 @@ def crop_weights(norm_weights,fraction):
     return c
 
 
-# def evaluate_target_general(vector, tp):
-#     L = tp['L']
-#     x_0 = tp['x_0'].cuda().double()
-#     y = tp['y'].cuda()
-#     prior_W = tp['prior_W']
-#     prior_b = tp['prior_b']
-#     regularization_weight = tp['regularization_weight']
-#     activation = tp['activation']
-#     classification = tp['classification']
-#     [W,b] = Vec2param(vector, tp)
-#     act = nn.ReLU(inplace=True)
-#     lpw = 0
-#     X = x_0
-#     output = FFnetwork(W,b,L,X,activation)
-#     for ll in range(0,L):
-#         W_temp = W[ll+1]
-#         b_temp = b[ll+1]
-#         if prior_W == 'no_prior':
-#             lpw += torch.tensor(0.0)   
-#         elif prior_W == 'L2':
-#             lpw += evaluate_regularization(regularization_weight, W_temp , b_temp, prior_W)
-#         elif prior_W == 'L1':
-#             lpw += evaluate_regularization(regularization_weight, W_temp , b_temp, prior_W)    
-#         else:    
-#             lpw += prior_W.loglike(W_temp) + prior_b.loglike(b_temp)  
-#     if classification == 'binary':        
-#         y = y.float()
-#         loss_ = nn.BCEWithLogitsLoss(reduction='sum')
-#         loss = loss_(output, y)
-#     elif classification == 'regression':
-#         y = y.double()
-#         loss_ = nn.MSELoss(reduction='mean')
-#         loss = loss_(output, y)
-#     else:
-#         loss = F.cross_entropy(output, y, reduction='sum')# the MSE part
-#     return W, b, loss+lpw
-
 
 def Vec2param(vector,tp):
     # save W and b as dictionary
@@ -259,33 +222,6 @@ def evaluate_regularization(weight, W, b, prior):
         phi = phi*weight
     return phi
 
-# the prediction of train data and test data
-def predict(train_loader,net):
-    z_est_train1= [] # the predicted probabilites
-    z_est_train = [] # the predicted label
-    y_train_new = []
-    for x, y in train_loader:
-        cost, err, probs = net.eval(x, y)
-        y_train_new.extend(y.tolist())
-        z_est_train1.extend(probs.tolist())
-        pred = (probs>0.5)*1.0
-        z_est_train.extend(pred.tolist())
-    return z_est_train, z_est_train1, y_train_new 
-
-
-# the prediction of train data and test data for multi-class classification
-def predict_multiclass(train_loader,net):
-    z_est_train1= [] # the predicted probabilites
-    z_est_train = [] # the predicted label
-    y_train_new = []
-    for x, y in train_loader:
-        cost, err, probs = net.eval(x, y)
-        y_train_new.extend(y.tolist())
-        z_est_train1.extend(probs.tolist())# probs
-        pred = probs.data.max(dim=1, keepdim=False)[1]  # get the index of the max log-probability
-        z_est_train.extend(pred.tolist())# labels
-    return z_est_train, z_est_train1, y_train_new 
-
 
 # the prediction of train data and test data for regression problem
 def predict_regression(train_loader,net):
@@ -326,46 +262,8 @@ def criteria(is_binary,Y_train1,z_est_train,z_est_train1,y_train_new):
 
     return auc_train,fpr_train,tpr_train,aucAv_train,matrix_train,Precision,Recall,Specificity,Accuracy,F1
 
-def criteria_multiclass(is_binary,Y_train1,z_est_train,z_est_train1,y_train_new):
-    # AUC calculation on train set
-    if is_binary==0:
-        auc_train,fpr_train,tpr_train,aucAv_train =Mul_AUC(F.one_hot(torch.tensor(Y_train1)).numpy(),torch.tensor(z_est_train).numpy())
-    elif is_binary==1:
-        auc_train,fpr_train, tpr_train=fastAUC(Y_train1,z_est_train1)
-        aucAv_train = 0
-        
-    # confusion matrix on train set 
-    matrix_train=confusion_matrix(np.array(y_train_new),z_est_train1)
-
-    TP = matrix_train[0,0]
-    FN = matrix_train[0,1]
-    FP = matrix_train[1,0]
-    TN = matrix_train[1,1]
-
-    Precision = TP/(TP+FP)
-    Recall = TP/(TP+FN)
-    Specificity = TN/(TN+FP)
-    Accuracy = (TP+TN)/(TP+TN+FP+FN)
-    F1 = 2*TP/(2*TP+FP+FN)
-
-    return auc_train,fpr_train,tpr_train,aucAv_train,matrix_train,Precision,Recall,Specificity,Accuracy,F1
 
 
-def Mul_AUC(y,pred):    #  c'est AUC pour les cas non binaires 
-    fpr=0
-    tpr=0
-    thresholds=0
-    b=[]
-    a=0
-    fp=[]
-    tp=[]
-    for i in range(y.shape[1]):
-        fpr, tpr=my_roc_curve(y[:,i],pred[:,i])
-        b.append(metrics.auc(fpr, tpr))
-        a+=(metrics.auc(fpr, tpr)*sum(y[:,i]))/len(y)
-        fp.append(fpr)
-        tp.append(tpr)
-    return b,fp,tp,a
 
 
 def fastAUC(y,pred):
@@ -385,123 +283,7 @@ def my_roc_curve(labels, scores):
     tpr = tp/num_pos #True Positive Rate
     return fpr, tpr
 
-def BNN_posterior(N, K, N_resampled,population, weights, x_test, y_test1, tp, is_binary):
-    m = nn.Sigmoid()
-    L =tp['L']
-    weights = np.nan_to_num(weights)
-    wn = weights/sum(weights)
-    
-    positions = np.random.choice([i for i in range(N*K)], N_resampled, replace = True, p = wn )
 
-    z_particle_test_all = []
-    z_particle_test_all1 = []
-    resampled_particle = []
-    auc_test_particle_all = []
-    fpr_test_particle_all = []
-    tpr_test_particle_all = []
-    aucAv_test_particle_all = []
-    
-    matrix_test_particle_all = []
-    Precision_particle_all = []
-    Recall_particle_all = []
-    Specificity_particle_all = []
-    Accuracy_particle_all = []
-    F1_particle_all = []
-    for jj in range(N_resampled):
-        #look at the obtained weights
-        resampled_particle.append(population[:,positions[jj]])
-        [W_particle,b_particle] = Vec2param(resampled_particle[jj],tp)
-
-        z_particle_test = FFnetwork(W_particle,b_particle,L,x_test,tp['activation'])
-        z_particle_test_all.append(z_particle_test) 
-
-        z_particle_test1 = z_particle_test.detach().cpu().numpy()
-        z_particle_test_all1.append(z_particle_test1) 
-        #this is useful to display probabilistic ROC curves
-        if is_binary==0:
-            auc_test_particle,fpr_test_particle, tpr_test_particle, aucAv_test_particle=Mul_AUC(y_test1,z_particle_test)
-        elif is_binary==1:
-            auc_test_particle,fpr_test_particle, tpr_test_particle=fastAUC(y_test1,m(torch.tensor(z_particle_test1)))
-        auc_test_particle_all.append(auc_test_particle)
-        fpr_test_particle_all.append(fpr_test_particle)
-        tpr_test_particle_all.append(tpr_test_particle)
-        if is_binary==0:
-            aucAv_test_particle_all.append(aucAv_test_particle) 
-        
-        z_est_test_particle = (m(z_particle_test)>0.5)*1.0
-        matrix_test_particle=confusion_matrix(np.array(y_test1),np.array(z_est_test_particle.cpu()))
-        matrix_test_particle_all.append(matrix_test_particle)
-
-        TP = matrix_test_particle[0,0]
-        FN = matrix_test_particle[0,1]
-        FP = matrix_test_particle[1,0]
-        TN = matrix_test_particle[1,1]
-
-        Precision_particle = TP/(TP+FP)
-        Recall_particle  = TP/(TP+FN)
-        Specificity_particle  = TN/(TN+FP)
-        Accuracy_particle  = (TP+TN)/(TP+TN+FP+FN)
-        F1_particle  = 2*TP/(2*TP+FP+FN)
-
-        Precision_particle_all.append(Precision_particle)
-        Recall_particle_all.append(Recall_particle)
-        Specificity_particle_all.append(Specificity_particle)
-        Accuracy_particle_all.append(Accuracy_particle)
-        F1_particle_all.append(F1_particle)
-            
-    return  z_particle_test_all, z_particle_test_all1, resampled_particle, auc_test_particle_all, fpr_test_particle_all, tpr_test_particle_all, aucAv_test_particle_all, matrix_test_particle_all, Precision_particle_all, Recall_particle_all, Specificity_particle_all,Accuracy_particle_all, F1_particle_all
-
-def BNN_posterior_multiclass(N, K, N_resampled,population, weights, x_test, y_test1, tp, is_binary):
-    L =tp['L']
-    weights[weights != weights] = 0 
-    wn = weights/sum(weights)
-    positions = np.random.choice([i for i in range(N*K)], N_resampled, replace = True, p = wn )
-
-    z_particle_test_all = []
-    z_particle_test_all1 = []
-    resampled_particle = []
-    auc_test_particle_all = []
-    fpr_test_particle_all = []
-    tpr_test_particle_all = []
-    aucAv_test_particle_all = []
-    
-    matrix_test_particle_all = []
-    Precision_particle_all = []
-    Recall_particle_all = []
-    Specificity_particle_all = []
-    Accuracy_particle_all = []
-    F1_particle_all = []
-    for jj in range(N_resampled):
-        #look at the obtained weights
-        resampled_particle.append(population[:,positions[jj]])
-        [W_particle,b_particle] = Vec2param(resampled_particle[jj],tp)
-
-        z_particle_test = FFnetwork(W_particle,b_particle,L,x_test,tp['activation'])
-        
-        z_particle_test = F.softmax(z_particle_test, dim=1).data.cpu() # probs
-        z_particle_test1 = z_particle_test.data.max(dim=1, keepdim=False)[1] # labels
-        
-        z_particle_test_all.append(z_particle_test) 
-        z_particle_test_all1.append(z_particle_test1) 
-        #this is useful to display probabilistic ROC curves
-        if is_binary==0:
-            auc_test_particle,fpr_test_particle, tpr_test_particle, aucAv_test_particle=Mul_AUC(F.one_hot(torch.tensor(y_test1)).cpu().numpy(),z_particle_test)
-        elif is_binary==1:
-            auc_test_particle,fpr_test_particle, tpr_test_particle=fastAUC(y_test1,m(torch.tensor(z_particle_test1)))
-        auc_test_particle_all.append(auc_test_particle)
-        fpr_test_particle_all.append(fpr_test_particle)
-        tpr_test_particle_all.append(tpr_test_particle)
-        if is_binary==0:
-            aucAv_test_particle_all.append(aucAv_test_particle) 
-        
-        matrix_test_particle=confusion_matrix(np.array(y_test1),z_particle_test1)
-        matrix_test_particle_all.append(matrix_test_particle)
-        
-        Accuracy_particle = np.sum(matrix_test_particle.diagonal())/np.sum(matrix_test_particle)
-
-        Accuracy_particle_all.append(Accuracy_particle)
-            
-    return  z_particle_test_all, z_particle_test_all1, resampled_particle, auc_test_particle_all, fpr_test_particle_all, tpr_test_particle_all, aucAv_test_particle_all, matrix_test_particle_all, Precision_particle_all, Recall_particle_all, Specificity_particle_all,Accuracy_particle_all, F1_particle_all
 
 def BNN_posterior_regression(N, K, N_resampled,population, weights, x_test, y_test, tp):
     L =tp['L']
@@ -860,101 +642,7 @@ def Param2vec_LeNet5(net,M):
     ind_total = ind_total+ind_temp
     return vector
 
-def evaluate_target_general_multiclass_large(vector,tp,X,y):
-    L = tp['L']
-    X = X.cuda()
-    y = y.cuda()
-    prior_W = tp['prior_W']
-    prior_b = tp['prior_b']
-    regularization_weight = tp['regularization_weight']
-    activation = tp['activation']
-    classification = tp['classification']
-    
-    model = LeNet5()
-    
-    # load the current dicts
-    model_new = Vec2param_LeNet5(vector,model)
-    device = torch.device("cuda")
-    model_new.to(device)
-    
-    optimizer = optim.Adam(model_new.parameters())
-    
-    output = model_new(X)
-            
-    if classification == 'binary':        
-        y = y.float()
-        loss_ = nn.BCEWithLogitsLoss(reduction='sum')
-        loss = loss_(output, y)
-    elif classification == 'regression':
-        y = y.double()
-        loss_ = nn.MSELoss(reduction='sum')
-        loss = loss_(output, y)
-    else:
-        loss = F.cross_entropy(output, y, reduction='sum')# the MSE part
-        
-    l1_penalty = torch.tensor(0.0)  
-    l2_penalty = torch.tensor(0.0)  
-    if prior_W == 'L1':  
-        l1_penalty = regularization_weight * vector.abs().sum()
-    elif prior_W == 'L2':    
-        l2_penalty = regularization_weight * (vector**2).sum()
-    loss_with_penalty = loss + l1_penalty + l2_penalty
-    
-    
-    optimizer.zero_grad()
-    loss_with_penalty.backward()
-    optimizer.step()
-    
-    grad_ = torch.tensor(()).cuda()
-    for i in range(10):
-        temp = optimizer.param_groups[0]['params'][i].grad
-        temp = torch.reshape(temp,(-1,))
-        grad_ = torch.cat((grad_,temp), dim=0)
-    
-    return grad_,loss_with_penalty  
 
-def evaluate_target_general_multiclass_large1(vector,tp,X,y):
-    L = tp['L']
-    X = X.cuda()
-    y = y.cuda()
-    prior_W = tp['prior_W']
-    prior_b = tp['prior_b']
-    regularization_weight = tp['regularization_weight']
-    activation = tp['activation']
-    classification = tp['classification']
-    
-    model = LeNet5()
-    
-    # load the current dicts
-    model_new = Vec2param_LeNet5(vector,model)
-    device = torch.device("cuda")
-    model_new.to(device)
-    
-    optimizer = optim.Adam(model_new.parameters())
-    
-    output = model_new(X)
-            
-    if classification == 'binary':        
-        y = y.float()
-        loss_ = nn.BCEWithLogitsLoss(reduction='sum')
-        loss = loss_(output, y)
-    elif classification == 'regression':
-        y = y.double()
-        loss_ = nn.MSELoss(reduction='sum')
-        loss = loss_(output, y)
-    else:
-        loss = F.cross_entropy(output, y, reduction='sum')# the MSE part
-        
-    l1_penalty = torch.tensor(0.0)  
-    l2_penalty = torch.tensor(0.0)  
-    if prior_W == 'L1':  
-        l1_penalty = regularization_weight * vector.abs().sum()
-    elif prior_W == 'L2':    
-        l2_penalty = regularization_weight * (vector**2).sum()
-    loss_with_penalty = loss + l1_penalty + l2_penalty
-    
-    
-    return loss_with_penalty 
         
 
 def diagevaluate_proposal_multiple_fullCov(x, mu, diagSig,N):
@@ -987,57 +675,3 @@ def diagfunctionR(diagSigma,N):
     logSqrtDetSigma = torch.sum(torch.log(diagSigma**(1/2)),dim=0)
     return inverse_sigma, logSqrtDetSigma
 
-def BNN_posterior_multiclass_large(N, K, N_resampled,population, weights, x_test, y_test1, tp, is_binary):
-    L =tp['L']
-    weights[weights != weights] = 0 
-    wn = weights/sum(weights)
-    positions = np.random.choice([i for i in range(N*K)], N_resampled, replace = True, p = wn )
-
-    z_particle_test_all = []
-    z_particle_test_all1 = []
-    resampled_particle = []
-    auc_test_particle_all = []
-    fpr_test_particle_all = []
-    tpr_test_particle_all = []
-    aucAv_test_particle_all = []
-    
-    matrix_test_particle_all = []
-    Precision_particle_all = []
-    Recall_particle_all = []
-    Specificity_particle_all = []
-    Accuracy_particle_all = []
-    F1_particle_all = []
-    for jj in range(N_resampled):
-        #look at the obtained weights
-        resampled_particle.append(population[:,positions[jj]])
-        model = LeNet5()
-    
-        # load the current dicts
-        model = Vec2param_LeNet5(resampled_particle[jj],model)
-
-        z_particle_test = model(x_test)
-        
-        z_particle_test = F.softmax(z_particle_test, dim=1).data.cpu() # probs
-        z_particle_test1 = z_particle_test.data.max(dim=1, keepdim=False)[1] # labels
-        
-        z_particle_test_all.append(z_particle_test) 
-        z_particle_test_all1.append(z_particle_test1) 
-        #this is useful to display probabilistic ROC curves
-        if is_binary==0:
-            auc_test_particle,fpr_test_particle, tpr_test_particle, aucAv_test_particle=Mul_AUC(F.one_hot(torch.tensor(y_test1)).cpu().numpy(),z_particle_test)
-        elif is_binary==1:
-            auc_test_particle,fpr_test_particle, tpr_test_particle=fastAUC(y_test1,m(torch.tensor(z_particle_test1)))
-        auc_test_particle_all.append(auc_test_particle)
-        fpr_test_particle_all.append(fpr_test_particle)
-        tpr_test_particle_all.append(tpr_test_particle)
-        if is_binary==0:
-            aucAv_test_particle_all.append(aucAv_test_particle) 
-        
-        matrix_test_particle=confusion_matrix(np.array(y_test1),z_particle_test1)
-        matrix_test_particle_all.append(matrix_test_particle)
-        
-        Accuracy_particle = np.sum(matrix_test_particle.diagonal())/np.sum(matrix_test_particle)
-
-        Accuracy_particle_all.append(Accuracy_particle)
-            
-    return  z_particle_test_all, z_particle_test_all1, resampled_particle, auc_test_particle_all, fpr_test_particle_all, tpr_test_particle_all, aucAv_test_particle_all, matrix_test_particle_all, Precision_particle_all, Recall_particle_all, Specificity_particle_all,Accuracy_particle_all, F1_particle_all
