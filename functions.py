@@ -310,7 +310,7 @@ def BNN_posterior_regression(N, K, N_resampled,population, weights, x_test, y_te
     return  z_particle_test_all, resampled_particle, MSE_test_particle_all
 
 
-def calculate_grad(Weight_0,B_0,tp):
+def calculate_grad(Weight_0,B_0,tp,model):
     L = tp['L']
     X = tp['x_0'].cuda().double()
     y = tp['y'].cuda()
@@ -337,7 +337,7 @@ def calculate_grad(Weight_0,B_0,tp):
     b[1] = b1
     b[2] = b2
     
-    output = FFnetwork(W,b,L,X,activation)
+    output = model(W,b,L,X,activation)
             
     if classification == 'binary':        
         y = y.float()
@@ -456,9 +456,9 @@ def calculate_grad_diag(Weight_0,B_0,tp,x_train,y_train):
     return W_g,B_g,loss_with_penalty
 
 
-def evaluate_target_general(vector,tp):
+def evaluate_target_general(vector,tp,model):
     [Weight_0,B_0] = Vec2param(vector, tp)
-    [W_g,B_g,l] = calculate_grad(Weight_0,B_0,tp)
+    [W_g,B_g,l] = calculate_grad(Weight_0,B_0,tp,model)
     return W_g,B_g,l
 
 

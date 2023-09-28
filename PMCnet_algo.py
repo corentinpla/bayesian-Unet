@@ -12,7 +12,7 @@ import pickle
 import os
 
 
-def SL_PMC_Adapt_Cov_new(N,K,T,sig_prop,lr,gr_period,tp,est_ml,epsilon1, epsilon2):
+def SL_PMC_Adapt_Cov_new(N,K,T,sig_prop,lr,gr_period,tp,est_ml,epsilon1, epsilon2,model):
 
     # initialization
     M=len(est_ml)
@@ -82,7 +82,7 @@ def SL_PMC_Adapt_Cov_new(N,K,T,sig_prop,lr,gr_period,tp,est_ml,epsilon1, epsilon
         sample_number = all_samples[t].shape[1]
         nlogf = []
         for s in range(sample_number):
-            _,_,nlogf_temp = evaluate_target_general(all_samples[t][:,s].double(),tp)
+            _,_,nlogf_temp = evaluate_target_general(all_samples[t][:,s].double(),tp,model)
             nlogf.append(nlogf_temp)
         logf = -torch.tensor(nlogf)
 
@@ -207,7 +207,7 @@ def SL_PMC_Adapt_Cov_new(N,K,T,sig_prop,lr,gr_period,tp,est_ml,epsilon1, epsilon
         samples_save = []
         for n in range(N):
             samples_resampled_n = samples_resampled[:,n].reshape(M,1)
-            [W_g,B_g,l] = evaluate_target_general(samples_resampled_n.double(),tp)
+            [W_g,B_g,l] = evaluate_target_general(samples_resampled_n.double(),tp,model)
             if cov_type==0 :
                 A_n = sample_Cov[t][n]
             elif cov_type==1:
@@ -236,11 +236,11 @@ def SL_PMC_Adapt_Cov_new(N,K,T,sig_prop,lr,gr_period,tp,est_ml,epsilon1, epsilon
             mysteps = steps
             cts = 0
             f_0=l
-            _,_,f_s = evaluate_target_general(samples_resampled_n-mysteps*dn,tp)
+            _,_,f_s = evaluate_target_general(samples_resampled_n-mysteps*dn,tp,model)
             while f_s > f_0 : #backtracking
                 mysteps = mysteps*coef_step
                 cts = cts + 1
-                _,_,f_s = evaluate_target_general(samples_resampled_n-mysteps*dn,tp)  
+                _,_,f_s = evaluate_target_general(samples_resampled_n-mysteps*dn,tp,model)  
             samples_resampled_adapted_0 = samples_resampled_n - mysteps*dn
             samples_resampled_adapted[:,n] = samples_resampled_adapted_0.squeeze(1)
             Sigma_resampled[:,:,n] = Save_A[n]

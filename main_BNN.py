@@ -264,50 +264,27 @@ model = Unet(
 criterion = nn.MSELoss()
 optimizer = Adam(model.parameters(), lr=1e-4) #lr : learning rate 
 
-####################################classic version##########################################
-for epoch in range(epochs):
-    loop = tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{epochs}")
-    for batch in loop:
-        optimizer.zero_grad()
 
-        batch_size_iter = batch["pixel_values"].shape[0]
-        batch_image = batch["pixel_values"].to(DEVICE)
+def tensor_from_state_dict(model):
 
-        # Algorithm 1 line 3: sample t uniformally for every example in the batch
-        batch_t = torch.randint(0, T, (batch_size_iter,), device=DEVICE).long()
-        
-        noise = torch.randn_like(batch_image)
-        
-        x_noisy = q_sample(constants_dict, batch_image, batch_t, noise=noise)
-        predicted_noise = model(x_noisy, batch_t)
-        
-        loss = criterion(noise, predicted_noise)
+    for param_tensor in model.state_dict():
+        weights = model.state_dict()[param_tensor]
+        est_ml.append(weights.view(-1))
 
-        loop.set_postfix(loss=loss.item())
+    est_ml=torch.cat(est_ml, axis=0)
 
-        loss.backward()
-        optimizer.step() #mettre à jour les poids du model 
-
-        sd = model.state_dict()
-        # for param_tensor in model.state_dict():
-
-        #     weights = model.state_dict()[param_tensor]
-        #     print("before",weights)
-        #     # Replace this part with the sampling ... 
-        #     new_weigths = torch.zeros_like(weights)
-
-        #     # reload the state_dict 
-        #     sd[param_tensor] = new_weigths
-        #     model.load_state_dict(sd)
-        #     print("after", model.state_dict()[param_tensor])
-
-#######################################BNN version########################################
+def state_dict_from_tensor(model,est_ml):
+    size=0
+    for param_tensor in model.state_dict():
+        shape = model.state_dict()[param_tensor].shape()
+        size_w = model.state_dict()[param_tensor].numel()
+        model.state_dict()[param_tensor]=est_ml[size:size+size_w].view(shape)
+        size+=size_w
+    return(model.state_dict())
 
 tp = {}
 
 tp['prior'] = 'L2' #'no_prior', 'Gaussian_prior', 'Laplace_prior','L2'
-tp['x_0'] = x_train
-tp['y'] = y_train
 tp['regularization_weight'] = 1.480264670576135
 if tp['prior'] == 'no_prior':# MLE
     prior_W = 'no_prior'
@@ -356,13 +333,7 @@ epsilon1 = 1e-50
 epsilon2 = 1e-50
 
 est_ml=[]
-for param_tensor in model.state_dict():
 
-    weights = model.state_dict()[param_tensor]
-    weights = weights.reshape(16,1)
-    est_ml.append(weights)
-
-est_ml=torch.cat(est_ml, axis=0)
 
 logger = get_logger('log_BNN_autoMPG_l2.txt') 
 
@@ -371,10 +342,6 @@ T = 50
 N_resampled = 200
 is_binary = 0
 loss = 'MSE'
-y_train1 = y_train.detach().numpy()
-y_val1 = y_val.detach().numpy()
-y_test1 = y_test.detach().numpy()
-
 
 myprint('T is {}'.format(T),logger)
 myprint('regularization_weight is {}'.format(tp['regularization_weight']),logger)
@@ -382,27 +349,34 @@ myprint('sig_prop is {}'.format(sig_prop),logger)
 myprint('N_resampled is {}'.format(N_resampled),logger)
 
 output_vec = []
+for epoch in range(epochs):
+    loop = tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{epochs}")
+    for batch in loop:
+        optimizer.zero_grad()
 
+        batch_size_iter = batch["pixel_values"].shape[0]
+        batch_image = batch["pixel_values"].to(DEVICE)
+
+        # Algorithm 1 line 3: sample t uniformally for every example in the batch
+        batch_t = torch.randint(0, T, (batch_size_iter,), device=DEVICE).long()
+        
+        noise = torch.randn_like(batch_image)
+        
+        x_noisy = q_sample(constants_dict, batch_image, batch_t, noise=noise)
+
+        tp['x_0'] = x_noisy
+        tp['y'] = batch_t
+
+        sd = model.state_dict()
 
     ##This line opens a log file
-with open("bug_log_BNN_regression.txt", "w") as log:
 
-    try:
-        for i in range(1): 
-            myprint('This is simulation {}'.format(i),logger)
-            output = SL_PMC_Adapt_Cov_new(N,K,T,sig_prop,lr,gr_period,tp,est_ml,epsilon1,epsilon2)
-            output_vec.append(output) 
+        output = SL_PMC_Adapt_Cov_new(N,K,T,sig_prop,lr,gr_period,tp,est_ml,epsilon1,epsilon2,model)
+        output_vec.append(output) 
 
-            path_save_BNN_output  = os.path.join(results_dir,'output_autoMPG_l2_final.txt')             
-            with open(path_save_BNN_output, "wb") as fp:   #Pickling
-                pickle.dump(output_vec, fp)
-        
-        print("There is no bug.", file = log)
-    except Exception:
-        traceback.print_exc(file=log)   
-
-######################################END BNN##################################
-
+        path_save_BNN_output  = os.path.join(results_dir,'output_autoMPG_l2_final.txt')             
+        with open(path_save_BNN_output, "wb") as fp:   #Pickling
+            pickle.dump(output_vec, fp)
 
 print("check generation:")  
 list_gen_imgs = sampling(model, (batch_size, channels, image_size, image_size), T, constants_dict)
