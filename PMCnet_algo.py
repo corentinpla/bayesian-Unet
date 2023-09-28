@@ -3,7 +3,7 @@ import torch
 import math
 import numpy as np
 from scipy.linalg import sqrtm
-from Model_files.functions import *
+from functions import *
 import time
 import torch.nn.functional as F
 import scipy.io as sio
