@@ -468,16 +468,12 @@ def evaluate_target_general_diag(vector,tp,x_train,y_train):
     [W_g,B_g,l] = calculate_grad_diag(Weight_0,B_0,tp, x_train, y_train)
     return W_g,B_g,l
 
-def evaluate_targer_general_Unet(vector,batch):
-    state_dict=
+def evaluate_target_general_Unet(vector,batch,model,optimizer):
+    state_dict=state_dict_from_tensor(model,vector)
+    [state_dict,loss]=calculate_grad_Unet(state_dict,batch,model,optimizer)
 
-def calculate_grad_Unet(state_dict,batch,est_ml,model,optimizer):
-    # X = tp['x_0'].cuda().double()
-    # y = tp['y'].cuda()
-    # prior_W = tp['prior_W']
-    # prior_b = tp['prior_b']
-    # regularization_weight = tp['regularization_weight']
-    
+def calculate_grad_Unet(state_dict,batch,model,optimizer):
+
     optimizer.zero_grad()
 
     batch_size_iter = batch["pixel_values"].shape[0]
@@ -490,6 +486,7 @@ def calculate_grad_Unet(state_dict,batch,est_ml,model,optimizer):
     
     x_noisy = q_sample(constants_dict, batch_image, batch_t, noise=noise)
     
+    model.state_dict = state_dict
     predicted_noise = model(x_noisy, batch_t)
     
     loss = criterion(noise, predicted_noise)
@@ -497,7 +494,8 @@ def calculate_grad_Unet(state_dict,batch,est_ml,model,optimizer):
     loss.backward()
     optimizer.step() #mettre à jour les poids du model 
 
-    return(model.state_dict, loss)
+    return([model.state_dict, loss])
+
 
 def calculate_grad_regression_large(Weight_0,B_0,tp):
     L = tp['L']

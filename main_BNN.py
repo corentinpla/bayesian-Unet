@@ -275,12 +275,12 @@ def tensor_from_state_dict(model):
     est_ml=torch.cat(est_ml, axis=0)
     return(est_ml)
 
-def state_dict_from_tensor(model,est_ml):
+def state_dict_from_tensor(model,vector):
     size=0
     for param_tensor in model.state_dict():
         shape = model.state_dict()[param_tensor].shape()
         size_w = model.state_dict()[param_tensor].numel()
-        model.state_dict()[param_tensor]=est_ml[size:size+size_w].view(shape)
+        model.state_dict()[param_tensor]=vector[size:size+size_w].view(shape)
         size+=size_w
     return(model.state_dict())
 
