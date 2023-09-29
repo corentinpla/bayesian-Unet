@@ -16,7 +16,9 @@ def SL_PMC_Adapt_Cov_new(N,K,T,sig_prop,lr,gr_period,tp,est_ml,epsilon1, epsilon
 
     # initialization
     M=len(est_ml)
-    initial_means= est_ml.repeat(1,N)+torch.randn(M,N).cuda() # initial_means M*N 
+    print(est_ml.repeat(N,1).shape)
+    print(torch.randn(N,M).shape)
+    initial_means= est_ml.repeat(N,1)+torch.randn(N,M).cuda() # initial_means M*N 
 
     #Variance of the proposals 
     Sigma0_small=torch.diag(torch.ones(M)*(sig_prop**2)).cuda().double()

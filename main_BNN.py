@@ -266,12 +266,13 @@ optimizer = Adam(model.parameters(), lr=1e-4) #lr : learning rate
 
 
 def tensor_from_state_dict(model):
-
+    est_ml=[]
     for param_tensor in model.state_dict():
         weights = model.state_dict()[param_tensor]
         est_ml.append(weights.view(-1))
 
     est_ml=torch.cat(est_ml, axis=0)
+    return(est_ml)
 
 def state_dict_from_tensor(model,est_ml):
     size=0
@@ -332,9 +333,7 @@ tp['regularization_weight'] = 1.480264670576135
 epsilon1 = 1e-50
 epsilon2 = 1e-50
 
-est_ml=[]
-
-
+est_ml= tensor_from_state_dict(model)
 logger = get_logger('log_BNN_autoMPG_l2.txt') 
 
    
@@ -366,8 +365,6 @@ for epoch in range(epochs):
 
         tp['x_0'] = x_noisy
         tp['y'] = batch_t
-
-        sd = model.state_dict()
 
     ##This line opens a log file
 
