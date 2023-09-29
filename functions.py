@@ -12,6 +12,7 @@ import logging
 import torch.nn.functional as F
 from scipy.stats import bernoulli, binom
 import torch.optim as optim
+from main_BNN import *
 
 
 def OpenMat(x):
@@ -467,6 +468,37 @@ def evaluate_target_general_diag(vector,tp,x_train,y_train):
     [W_g,B_g,l] = calculate_grad_diag(Weight_0,B_0,tp, x_train, y_train)
     return W_g,B_g,l
 
+def evaluate_targer_general_Unet(vector,batch):
+    state_dict=
+
+def calculate_grad_Unet(state_dict,batch,est_ml,model,optimizer):
+    # X = tp['x_0'].cuda().double()
+    # y = tp['y'].cuda()
+    # prior_W = tp['prior_W']
+    # prior_b = tp['prior_b']
+    # regularization_weight = tp['regularization_weight']
+    
+    optimizer.zero_grad()
+
+    batch_size_iter = batch["pixel_values"].shape[0]
+    batch_image = batch["pixel_values"].to(DEVICE)
+
+    # Algorithm 1 line 3: sample t uniformally for every example in the batch
+    batch_t = torch.randint(0, T, (batch_size_iter,), device=DEVICE).long()
+    
+    noise = torch.randn_like(batch_image)
+    
+    x_noisy = q_sample(constants_dict, batch_image, batch_t, noise=noise)
+    
+    predicted_noise = model(x_noisy, batch_t)
+    
+    loss = criterion(noise, predicted_noise)
+
+    loss.backward()
+    optimizer.step() #mettre à jour les poids du model 
+
+    return(model.state_dict, loss)
+
 def calculate_grad_regression_large(Weight_0,B_0,tp):
     L = tp['L']
     X = tp['x_0'].cuda().double()
@@ -548,6 +580,8 @@ def evaluate_target_general_regression_large(vector,tp):
     [W_g,B_g,l] = calculate_grad_regression_large(Weight_0,B_0,tp)
     return W_g,B_g,l
 
+def evaluate_target_general_Unet(vector,batch,est_ml,model,optimizer)
+    state_dict=
 
 def Vec2param_LeNet5(vector,model):
     state_dict = model.state_dict()

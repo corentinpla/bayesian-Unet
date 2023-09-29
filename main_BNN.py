@@ -51,6 +51,7 @@ from sklearn.model_selection import train_test_split
 import pickle
 from functions import *
 from PMCnet_algo import *
+from PMCnet_light_algo_regression_large import *
 from model import Unet
 # from golden_search import *
 # from run_PMCnet_fixedReg_regression import *
@@ -368,7 +369,7 @@ for epoch in range(epochs):
 
     ##This line opens a log file
 
-        output = SL_PMC_Adapt_Cov_new(N,K,T,sig_prop,lr,gr_period,tp,est_ml,epsilon1,epsilon2,model)
+        output = SL_PMC_Adapt_Cov_new_large(train_dataloader,N,K,T,sig_prop,lr,gr_period,tp,est_ml,epsilon1, epsilon2,model,optimizer)
         output_vec.append(output) 
 
         path_save_BNN_output  = os.path.join(results_dir,'output_autoMPG_l2_final.txt')             
