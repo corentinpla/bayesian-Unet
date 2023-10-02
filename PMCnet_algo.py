@@ -16,8 +16,8 @@ def SL_PMC_Adapt_Cov_new(N,K,T,sig_prop,lr,gr_period,tp,est_ml,epsilon1, epsilon
 
     # initialization
     M=len(est_ml)
-    print(est_ml.repeat(N,1).shape)
-    print(torch.randn(N,M).shape)
+    # print(est_ml.repeat(N,1).shape)
+    # print(torch.randn(N,M).shape)
     initial_means= est_ml.repeat(N,1)+torch.randn(N,M).cuda() # initial_means M*N 
 
     #Variance of the proposals 

@@ -11,7 +11,8 @@ import scipy.io as sio
 import sys
 import pickle
 import os
-from main_BNN import *
+# from functions import diagevaluate_proposal_multiple_fullCov, Param2vec, evaluate_target_general_Unet, diagweightedcov  
+
 
 def SL_PMC_Adapt_Cov_new_large(train_loader,N,K,T,sig_prop,lr,gr_period,tp,est_ml,epsilon1, epsilon2,model,optimizer):
 
@@ -71,10 +72,10 @@ def SL_PMC_Adapt_Cov_new_large(train_loader,N,K,T,sig_prop,lr,gr_period,tp,est_m
         # 1. Sampling (propagate proposals)
         all_samples_0 = []
         for n in range(N): # N proposal distributions
-            print("proposal temp", proposals_temp.shape)
-            print("A",proposals_temp[:,n].unsqueeze(-1).repeat(1, K).shape)
-            print("B",torch.randn(M_,K).cuda().shape)
-            print("C",torch.tensor(Sigma_temp[:,n]**(1/2)).unsqueeze(-1).float().cuda().shape)
+            # print("proposal temp", proposals_temp.shape)
+            # print("A",proposals_temp[:,n].unsqueeze(-1).repeat(1, K).shape)
+            # print("B",torch.randn(M_,K).cuda().shape)
+            # print("C",torch.tensor(Sigma_temp[:,n]**(1/2)).unsqueeze(-1).float().cuda().shape)
             a = proposals_temp[:,n].unsqueeze(-1).repeat(1, K)+torch.randn(M_,K).cuda()*torch.tensor(Sigma_temp[:,n]**(1/2)).unsqueeze(-1).float().cuda()
             if n == 0:
                 all_samples_0 = a
@@ -88,7 +89,8 @@ def SL_PMC_Adapt_Cov_new_large(train_loader,N,K,T,sig_prop,lr,gr_period,tp,est_m
         sample_number = all_samples[t].shape[1]
         nlogf = []
         for s in range(sample_number):
-            _, _, nlogf_temp = evaluate_target_general_Unet(all_samples[t][:,s].double(),tp,model)
+            _, _, nlogf_temp = evaluate_target_general_Unet(all_samples[t][:,s].double(),tp,model,optimizer)
+            print("nlogf_temp",nlogf_temp)
             nlogf.append(nlogf_temp)
         logf = -torch.tensor(nlogf)
 

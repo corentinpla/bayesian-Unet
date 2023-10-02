@@ -185,8 +185,6 @@ def q_sample(constants_dict, batch_x0, batch_t, noise=None):
     return sqrt_alphas_cumprod_t * batch_x0 + sqrt_one_minus_alphas_cumprod_t * noise
 
 
-
-@torch.no_grad() 
 def p_sample(constants_dict, batch_xt, predicted_noise, batch_t):
     # We first get every constants needed and send them in right device
     betas_t = extract(constants_dict['betas'], batch_t, batch_xt.shape).to(batch_xt.device)
@@ -220,7 +218,6 @@ def p_sample(constants_dict, batch_xt, predicted_noise, batch_t):
     return predicted_image
 
 # Algorithm 2 (including returning all images)
-@torch.no_grad()
 def sampling(model, shape, T, constants_dict):
     b = shape[0]
     # start from pure noise (for each example in the batch)
@@ -265,56 +262,13 @@ model = Unet(
 criterion = nn.MSELoss()
 optimizer = Adam(model.parameters(), lr=1e-4) #lr : learning rate 
 
-
-def tensor_from_state_dict(model):
-    est_ml=[]
-    for param_tensor in model.state_dict():
-        weights = model.state_dict()[param_tensor]
-        est_ml.append(weights.view(-1))
-
-    est_ml=torch.cat(est_ml, axis=0)
-    return(est_ml)
-
-def state_dict_from_tensor(model,vector):
-    size=0
-    for param_tensor in model.state_dict():
-        shape = model.state_dict()[param_tensor].shape()
-        size_w = model.state_dict()[param_tensor].numel()
-        model.state_dict()[param_tensor]=vector[size:size+size_w].view(shape)
-        size+=size_w
-    return(model.state_dict())
-
+#some params 
 tp = {}
-
 tp['prior'] = 'L2' #'no_prior', 'Gaussian_prior', 'Laplace_prior','L2'
 tp['regularization_weight'] = 1.480264670576135
-if tp['prior'] == 'no_prior':# MLE
-    prior_W = 'no_prior'
-    prior_b = 'no_prior'
-    tp['prior_W'] = prior_W
-    tp['prior_b'] = prior_b
-elif tp['prior'] == 'Gaussian_prior':
-    prior_W = isotropic_gauss_prior(mu=0, sigma=2)
-    prior_b = isotropic_gauss_prior(mu=0, sigma=2)
-    tp['prior_W'] = prior_W
-    tp['prior_b'] = prior_b
-elif tp['prior'] == 'Laplace_prior':# MAP+L1 regularization
-    prior_sig = 0.1
-    prior = laplace_prior(mu=0, b=prior_sig)
-elif tp['prior'] == 'L2': # L2 regularization
-    prior_W = 'L2'
-    prior_b = 'L2'
-    tp['prior_W'] = prior_W
-    tp['prior_b'] = prior_b
-elif tp['prior'] == 'L1': # L1 regularization
-    prior_W = 'L1'
-    prior_b = 'L1'
-    tp['prior_W'] = prior_W
-    tp['prior_b'] = prior_b       
-print('The prior is ',tp['prior'])        
+tp['prior_W'] = 'L2'
+tp['prior_b'] = 'L2'            
 
-dogolden_search = 0
-dosave = 0
 
 # some settings
 use_cuda = torch.cuda.is_available()
@@ -330,12 +284,11 @@ K = 10  # samples per proposal per iteration
 sig_prop = 0.01
 lr = 2  #glocal resampling
 gr_period=5
-tp['regularization_weight'] = 1.480264670576135
 epsilon1 = 1e-50
 epsilon2 = 1e-50
 
 est_ml= tensor_from_state_dict(model)
-logger = get_logger('log_BNN_autoMPG_l2.txt') 
+# logger = get_logger('log_BNN_autoMPG_l2.txt') 
 
    
 T = 50
@@ -343,38 +296,34 @@ N_resampled = 200
 is_binary = 0
 loss = 'MSE'
 
-myprint('T is {}'.format(T),logger)
-myprint('regularization_weight is {}'.format(tp['regularization_weight']),logger)
-myprint('sig_prop is {}'.format(sig_prop),logger)
-myprint('N_resampled is {}'.format(N_resampled),logger)
 
 output_vec = []
-for epoch in range(epochs):
-    loop = tqdm(train_dataloader, desc=f"Epoch {epoch+1}/{epochs}")
-    for batch in loop:
-        optimizer.zero_grad()
 
-        batch_size_iter = batch["pixel_values"].shape[0]
-        batch_image = batch["pixel_values"].to(DEVICE)
+loop = tqdm(train_dataloader)
+for batch in loop:
+    optimizer.zero_grad()
 
-        # Algorithm 1 line 3: sample t uniformally for every example in the batch
-        batch_t = torch.randint(0, T, (batch_size_iter,), device=DEVICE).long()
-        
-        noise = torch.randn_like(batch_image)
-        
-        x_noisy = q_sample(constants_dict, batch_image, batch_t, noise=noise)
+    batch_size_iter = batch["pixel_values"].shape[0]
+    batch_image = batch["pixel_values"].to(DEVICE)
 
-        tp['x_0'] = x_noisy
-        tp['y'] = batch_t
+    # Algorithm 1 line 3: sample t uniformally for every example in the batch
+    batch_t = torch.randint(0, T, (batch_size_iter,), device=DEVICE).long()
+    
+    noise = torch.randn_like(batch_image)
+    
+    x_noisy = q_sample(constants_dict, batch_image, batch_t, noise=noise)
 
-    ##This line opens a log file
+    tp['x_0'] = x_noisy
+    tp['y'] = batch_t
 
-        output = SL_PMC_Adapt_Cov_new_large(train_dataloader,N,K,T,sig_prop,lr,gr_period,tp,est_ml,epsilon1, epsilon2,model,optimizer)
-        output_vec.append(output) 
+##This line opens a log file
 
-        path_save_BNN_output  = os.path.join(results_dir,'output_autoMPG_l2_final.txt')             
-        with open(path_save_BNN_output, "wb") as fp:   #Pickling
-            pickle.dump(output_vec, fp)
+    output = SL_PMC_Adapt_Cov_new_large(train_dataloader,N,K,T,sig_prop,lr,gr_period,tp,est_ml,epsilon1, epsilon2,model,optimizer)
+    output_vec.append(output) 
+
+    path_save_BNN_output  = os.path.join(results_dir,'output_autoMPG_l2_final.txt')             
+    with open(path_save_BNN_output, "wb") as fp:   #Pickling
+        pickle.dump(output_vec, fp)
 
 print("check generation:")  
 list_gen_imgs = sampling(model, (batch_size, channels, image_size, image_size), T, constants_dict)

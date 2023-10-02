@@ -12,7 +12,6 @@ import logging
 import torch.nn.functional as F
 from scipy.stats import bernoulli, binom
 import torch.optim as optim
-from main_BNN import *
 
 
 def OpenMat(x):
@@ -43,6 +42,23 @@ def to_variable(var=(), cuda=True, volatile=False):
         out.append(v)
     return out
 
+def tensor_from_state_dict(model):
+    est_ml=[]
+    for param_tensor in model.state_dict():
+        weights = model.state_dict()[param_tensor]
+        est_ml.append(weights.view(-1))
+
+    est_ml=torch.cat(est_ml, axis=0)
+    return(est_ml)
+
+def state_dict_from_tensor(model,vector):
+    size=0
+    for param_tensor in model.state_dict():
+        shape = model.state_dict()[param_tensor].shape
+        size_w = model.state_dict()[param_tensor].numel()
+        model.state_dict()[param_tensor]=vector[size:size+size_w].view(shape)
+        size+=size_w
+    return(model.state_dict())
 
 
 """
@@ -578,8 +594,6 @@ def evaluate_target_general_regression_large(vector,tp):
     [W_g,B_g,l] = calculate_grad_regression_large(Weight_0,B_0,tp)
     return W_g,B_g,l
 
-def evaluate_target_general_Unet(vector,batch,est_ml,model,optimizer)
-    state_dict=
 
 def Vec2param_LeNet5(vector,model):
     state_dict = model.state_dict()
